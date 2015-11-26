@@ -1,0 +1,97 @@
+### Ohmycon Example
+
+# input base URL to crawl
+URLBase = "http://www.ohmycon.co.kr/news/"
+
+# define a function to get ArticlePage URL from ListPage
+def parse_ListPage(pageNumber) :
+    links = []
+
+    url = URLBase + "articleList.html?page=%d&total=441&sc_section_code=S1N7" %(pageNumber)
+    html_doc = urllib.urlopen(url).read()
+    soup = BeautifulSoup(html_doc, "html.parser")
+
+    articles = soup.find_all("td", "ArtList_Title")
+    for article in articles :
+        link = article.find("a")['href']
+        links.append(link)
+
+    return links
+
+# define a function to get required data from ArticlePage
+def parse_ArticlePage(articleURL) :
+    url = URLBase + articleURL
+    html_doc = urllib.urlopen(url).read()
+    soup = BeautifulSoup(html_doc, "html.parser")
+
+    articleHTML = soup.find("td", width="690")
+    HTML = str(articleHTML)
+    articleID = articleHTML.find("input")
+    ID = articleID["value"]
+
+    articleOffice = soup.find("meta", property="og:article:author")
+    office = articleOffice["content"]
+
+    articleTitle = soup.find("div", class_="View_Title")
+    title = articleTitle.get_text()
+
+    articleContents = soup.find("td", id="articleBody")
+    if len(articleContents.find_all("p")) > 1 :
+        articleTexts = articleContents.find_all("p")
+        texts = []
+        for articleText in articleTexts :
+            text = articleText.get_text()
+            texts.append(text)
+        contents = " ".join(texts)
+    else :
+        articleContents = soup.find("td", id="articleBody")
+        contents = articleContents.get_text()
+
+    articleDate = soup.find("div", class_="View_Time")
+    date_erase = articleDate.span.extract()
+    date = articleDate.get_text().split()[0]
+    
+    articleCategory = soup.find("td", class_="View_Section")
+    categoryText = articleCategory.find("strong")
+    category = categoryText.get_text()
+
+    URL = url
+
+    return {u'HTML' : HTML,
+            u'ID' : ID,
+            u'office' : office,
+            u'title' : title,
+            u'contents' : contents,
+            u'date' : date,
+            u'category' : category,
+            u'url' : URL}
+
+# define a function to save crawled data as json file
+def make_json(article) :
+    office = article['office']
+    year = article['date'].strip()
+    ID = article['ID']
+    targetpath = "%s/%s/%s" % (office, year, ID)
+    fileName = "%s.json" % (targetpath)
+    if isinstance(fileName, str) :
+        fileName = fileName.decode('utf-8')
+    fileName = fileName.encode('utf-8')
+
+    directory = fileName.rsplit('/', 1)[0]
+    check_dir(directory)
+
+    write_json(article, fileName)
+    print 'File written to %s' % fileName
+
+# define the main function for crawling
+def main() :
+    links = parse_ListPage(page)
+    for link in links :
+        article = parse_ArticlePage(link)
+        make_json(article)
+
+# crawling code execution
+page = 1
+while page < 2 :
+    main()
+    page += 1
